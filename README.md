@@ -1,8 +1,8 @@
 # useful-plugins
 
-Claude Code plugin 集合(個人 marketplace,名稱：`useful-plugins`)。
+A personal collection of Claude Code plugins (personal marketplace: `useful-plugins`).
 
-## 安裝
+## Install
 
 ```
 /plugin marketplace add https://github.com/tommylzm/useful-plugins.git
@@ -11,8 +11,8 @@ Claude Code plugin 集合(個人 marketplace,名稱：`useful-plugins`)。
 
 ## Plugins
 
-| Plugin | 說明 |
+| Plugin | Description |
 |---|---|
-| [`neuip-reimburse`](./neuip-reimburse) | nueip 報帳自動化：發票→歸檔→合併 <10MB PDF→辨識金額→API 送出請款。詳見其 [README](./neuip-reimburse/README.md)。 |
+| [`neuip-reimburse`](./neuip-reimburse) | Automates nueip reimbursement: receipts → archive → merge into a <10MB PDF → recognize amounts → submit claims via the nueip API. See its [README](./neuip-reimburse/README.md). |
 
-安裝後每個 plugin 可能有自己的一次性設定步驟,見各自 README。
+Each plugin may have its own one-time setup steps — see the plugin's own README.
