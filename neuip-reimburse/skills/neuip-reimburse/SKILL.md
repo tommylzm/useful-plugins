@@ -29,20 +29,39 @@ description: Use when the user wants to file neuip 報帳/請款 from receipt im
 
 ## 流程
 
-### 若尚未設定（無 config.json）或帶 `--setup`
-1. 問使用者 nueip base URL（若 config.json 沒有）。
-2. **請使用者用 `!` 前綴自行互動執行**（此工具的 bash 無互動 stdin）：
-   `! cd <skill> && ~/.config/neuip-reimburse/venv/bin/python -m scripts.setup_capture --base-url <url>`。
-   使用者在瀏覽器手動登入 + 送一筆範本，然後**直接關閉瀏覽器視窗**即結束（不需按 Enter）。
-   腳本邊擷取邊寫 `capture_raw.json`。
-3. 讀 `~/.config/neuip-reimburse/capture_raw.json`，和使用者一起指認 login/submit endpoint、
-   欄位對應、各分類 code，寫入 `config.json`；把 cookies（或找到的 token）以
-   `{"kind":"cookie"|"token", ...}` 寫入 `auth.json`（用 `neuip_client.save_auth`，chmod 600）。
-4. **授權 submit wrapper（首次必做，一次即可）**：agent 無法自我擴權，所以**請使用者用 `!` 執行**：
-   `! python3 <skill>/scripts/grant_submit_permission.py`
-   這會 `chmod +x submit.sh` 並把 `Bash(<submit.sh 絕對路徑>:*)` 加進 `~/.claude/settings.json`
-   的 `permissions.allow`，之後 `submit.sh` 才能免逐筆核准直接送出。加完可能需 `/reload-plugins`
-   或重開 session 才生效。若 submit 仍被安全層擋下，代表這步沒做或尚未生效。
+### `--setup`：先判斷模式
+
+先讀 `~/.config/neuip-reimburse/config.json`：
+- **有 `endpoints.submit.path`（一般安裝者，config 由 `config.template.json` 產生）→ 走「輕量 setup」**。
+- 沒有 config.json、或缺 `endpoints`（第一次逆向這個系統的開發者）→ 走「完整探索 setup」。
+
+多數人是輕量 setup。**不需要重新逆向 API**——endpoint/欄位/csrf 已在 config 裡。
+
+#### 輕量 setup（一般安裝者）
+1. **登入取 cookie**：請使用者用 `!` 執行（此工具 bash 無互動 stdin，且會開瀏覽器）：
+   `! cd <skill> && ~/.config/neuip-reimburse/venv/bin/python -m scripts.setup_capture --base-url https://portal.nueip.com/login`
+   → 在瀏覽器登入自己的 nueip（登一次即可，不必送範本），然後**關閉瀏覽器視窗**結束。
+2. **寫入 auth + 列出科目**：請使用者用 `!` 執行：
+   `! cd <skill> && ~/.config/neuip-reimburse/venv/bin/python -m scripts.finalize_setup`
+   → 這會把 cookie 寫進 `auth.json`（chmod 600），並印出該帳號可用的科目 `name → code`。
+3. 依印出的清單，和使用者確認要報帳哪些科目，把 `name` / `neuip_category_code` / `cap`
+   填進 `~/.config/neuip-reimburse/config.json` 的 `categories`（取代範本的佔位值）。
+4. **授權 submit wrapper**（見下方步驟 4）。
+
+#### 完整探索 setup（僅在缺 endpoints 時）
+1. 問使用者 nueip base URL。
+2. `! cd <skill> && ~/.config/neuip-reimburse/venv/bin/python -m scripts.setup_capture --base-url <url>`；
+   使用者登入 + **手動送一筆範本**（才抓得到送出 endpoint），關閉視窗結束。
+3. 讀 `capture_raw.json`，和使用者一起指認 login/submit endpoint、欄位對應、科目 code，
+   寫入 `config.json`；cookies 以 `{"kind":"cookie","cookies":{…}}` 寫入 `auth.json`
+   （用 `neuip_client.save_auth`，chmod 600）。可用 `finalize_setup` 完成 auth + 科目查詢。
+
+#### 步驟 4（兩種模式都要，首次一次即可）
+**授權 submit wrapper**：agent 無法自我擴權，所以**請使用者用 `!` 執行**：
+`! python3 <skill>/scripts/grant_submit_permission.py`
+這會 `chmod +x submit.sh` 並把 `Bash(<submit.sh 絕對路徑>:*)` 加進 `~/.claude/settings.json`
+的 `permissions.allow`，之後 `submit.sh` 才能免逐筆核准直接送出。加完可能需 `/reload-plugins`
+或重開 session 才生效。若 submit 仍被安全層擋下，代表這步沒做或尚未生效。
 
 config.json 結構（已對 nueip 實測確定）：
 - `base_url`: `https://cloud.nueip.com`
