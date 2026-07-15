@@ -1,0 +1,9 @@
+{
+  "name": "neuip-reimburse",
+  "version": "0.1.0",
+  "description": "把發票圖片依年月+分類歸檔、合併成 <10MB PDF、辨識並加總金額（套分類上限、使用者確認後）透過 nueip API 送出請款。",
+  "author": {
+    "name": "Tommy Lin",
+    "email": "tommyltzm@gmail.com"
+  }
+}

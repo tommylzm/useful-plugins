@@ -1,0 +1,21 @@
+{
+  "_comment": "nueip 請款設定範本。複製到 ~/.config/neuip-reimburse/config.json，並把 categories 換成貴公司的科目代碼與上限。科目代碼取得方式見 SKILL.md（帶 cookie POST payment_request、action=get_payroll_options，回傳每筆的 s_sn 即為 code）。auth.json（個人登入 cookie）由 --setup 各自產生，切勿共用或提交。",
+  "base_url": "https://cloud.nueip.com",
+  "endpoints": { "submit": { "method": "POST", "path": "/payment_request" } },
+  "submit_extra_fields": { "action": "add" },
+  "headers": { "X-Requested-With": "XMLHttpRequest" },
+  "csrf": { "cookie": "csrf_token", "header": "X-Csrf-Token" },
+  "field_mapping": {
+    "amount": "pay",
+    "date": ["start_date", "end_date"],
+    "reason": "remark",
+    "category_code": "p_sn",
+    "attachment": "files[]"
+  },
+  "categories": [
+    { "name": "分類範例A", "cap": 0, "neuip_category_code": "REPLACE_WITH_YOUR_CODE" },
+    { "name": "分類範例B", "cap": 0, "neuip_category_code": "REPLACE_WITH_YOUR_CODE" }
+  ],
+  "archive_root": "~/Documents/報帳",
+  "max_pdf_bytes": 10485760
+}
