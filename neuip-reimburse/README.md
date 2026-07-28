@@ -1,8 +1,8 @@
 # neuip-reimburse
 
 A Claude Code plugin that automates filing reimbursement claims on **nueip**
-(`cloud.nueip.com`, a Taiwanese HR/expense SaaS): it archives receipt images by
-year-month and category, merges each category into a single sub-10MB PDF,
+(`cloud.nueip.com`, a Taiwanese HR/expense SaaS): it archives receipts — images
+or PDFs — by year-month and category, merges each category into a single sub-10MB PDF,
 recognizes and sums the invoice amounts (capped per category, confirmed by you),
 and submits each claim through the nueip API.
 
@@ -55,3 +55,6 @@ sharing, hand over the repo only — never anyone's `~/.config/neuip-reimburse/`
 - macOS / Python 3.11+ (tested on 3.14)
 - The first `bootstrap.py` run installs pillow, playwright, and pytest into a
   private venv and downloads Chromium.
+- **ghostscript** (`brew install ghostscript`) — only needed if your receipts
+  arrive as PDFs (most e-invoice mailers send PDFs); they are rasterized before
+  being merged. Image-only receipts need nothing extra.

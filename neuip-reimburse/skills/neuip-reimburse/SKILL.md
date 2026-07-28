@@ -1,6 +1,6 @@
 ---
 name: neuip-reimburse
-description: Use when the user wants to file neuip 報帳/請款 from receipt images — archives images by year-month + category, merges each category into one sub-10MB PDF, recognizes and sums invoice amounts (user-confirmed, capped per category), and submits each claim to neuip via its API. Triggers like "/neuip-reimburse", "幫我報帳", "把這個月發票送 neuip".
+description: Use when the user wants to file neuip 報帳/請款 from receipt images or PDFs — archives receipts by year-month + category, merges each category into one sub-10MB PDF, recognizes and sums invoice amounts (user-confirmed, capped per category), and submits each claim to neuip via its API. Triggers like "/neuip-reimburse", "幫我報帳", "把這個月發票送 neuip".
 ---
 
 # neuip-reimburse
@@ -15,6 +15,8 @@ description: Use when the user wants to file neuip 報帳/請款 from receipt im
   接著 `~/.config/neuip-reimburse/venv/bin/python -m playwright install chromium`）。
 - `<skill>` = **此 skill 的 base directory（啟動時系統會告訴你絕對路徑，例如
   `~/.claude/skills/neuip-reimburse`）**。所有指令一律用這個實際 base dir，不要寫死他人路徑。
+- **ghostscript**（`gs`）：inbox 有 PDF 發票時，`build_pdf` 用它 rasterize；缺了會明確報錯，
+  裝法 `brew install ghostscript`。只有圖片收據時不需要。
 - 所有腳本從 skill 目錄以模組執行：
   `cd <skill> && ~/.config/neuip-reimburse/venv/bin/python -m scripts.<name> ...`
 - 秘密只在 `~/.config/neuip-reimburse/`（config.json / auth.json），永不外流、不進 git。
@@ -86,14 +88,18 @@ config.json 結構（已對 nueip 實測確定）：
 ### 每次報帳
 1. 決定年月與 `archive_root`（config 的 `archive_root`，預設 `~/Documents/報帳`）。
 2. 列出 `<archive_root>/inbox/` 下有檔案的分類子資料夾。逐一處理每個分類：
-   a. **辨識金額**：用 Read 工具讀該分類 inbox 內每張圖，辨識金額與日期。
+   a. **辨識金額**：用 Read 工具讀該分類 inbox 內每張收據（`.jpg/.jpeg/.png/.pdf`），
+      辨識金額與日期。Read 讀 PDF 需要 poppler；若環境沒有，先用
+      `gs -q -dNOPAUSE -dBATCH -sDEVICE=png16m -r150 -sOutputFile=<tmp>/<name>.png <pdf>`
+      轉圖再讀。
    b. 顯示每張明細 + 加總；套上限（config 該分類 `cap`）：`送出金額 = min(加總, cap)`，
       超過上限用 ⚠️ 標示。
    c. **請使用者確認金額**，並輸入該分類「事由」；日期預設取辨識到的最新一張，可修改。
    d. 產 PDF：
       `python -m scripts.build_pdf --category <cat> --month <ym> --archive-root <root> --inbox <root>/inbox --max-bytes 10485760`
-      （這步會把圖搬到 `<root>/<ym>/<cat>/` 並產 `claim.pdf`；回傳 JSON 含 pdf 路徑與 bytes。
-      回傳 `skipped:true` 表示該分類沒圖，略過。）
+      （這步會把收據搬到 `<root>/<ym>/<cat>/` 並產 `claim.pdf`；圖片與 PDF 都吃，PDF 會先
+      rasterize 再走同一條壓縮階梯，多頁 PDF 每頁各佔一頁。回傳 JSON 含 pdf 路徑、
+      `receipt_count`、`page_count`、`bytes`。回傳 `skipped:true` 表示該分類沒收據，略過。）
 3. **送出**（除非 `--dry-run`）：逐筆先列出將送出內容（分類/金額/日期/事由/PDF），
    除非 `--yes` 否則等使用者確認，再透過 allowlisted wrapper 執行（避免安全攔截）：
    `<skill>/submit.sh --pdf <pdf> --category <cat> --amount <amt> --date <date> --reason <reason> [--yes]`
