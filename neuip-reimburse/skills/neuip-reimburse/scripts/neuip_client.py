@@ -41,6 +41,7 @@ def load_auth() -> dict:
 
 import mimetypes
 import ssl
+import urllib.error
 import urllib.request
 
 
@@ -80,8 +81,13 @@ def _multipart(fields: dict, file_field: str, file_path: str):
 
 
 def _default_opener(req):
-    with urllib.request.urlopen(req, context=_SSL_CONTEXT) as resp:
-        return resp.status, resp.read()
+    try:
+        with urllib.request.urlopen(req, context=_SSL_CONTEXT) as resp:
+            return resp.status, resp.read()
+    except urllib.error.HTTPError as e:
+        # urlopen raises on 4xx/5xx; hand the status back so submit() can turn a
+        # 401 into AuthExpired instead of surfacing a traceback.
+        return e.code, e.read()
 
 
 class NeuipClient:

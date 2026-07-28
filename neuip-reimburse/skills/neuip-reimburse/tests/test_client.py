@@ -1,3 +1,8 @@
+import io
+import urllib.error
+import urllib.request
+
+from scripts import neuip_client
 from scripts.neuip_client import NeuipClient, AuthExpired
 
 CFG = {
@@ -53,6 +58,18 @@ def test_401_raises_auth_expired(tmp_path):
         assert False, "expected AuthExpired"
     except AuthExpired:
         pass
+
+
+def test_default_opener_reports_error_status(monkeypatch):
+    """urlopen raises HTTPError on 4xx — the opener must hand the status back,
+    otherwise submit() never reaches its 401 → AuthExpired branch."""
+    def boom(req, context=None):
+        raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", {},
+                                     io.BytesIO(b"unauthorized"))
+
+    monkeypatch.setattr(neuip_client.urllib.request, "urlopen", boom)
+    req = urllib.request.Request("https://x.neuip.com/api/claim", data=b"", method="POST")
+    assert neuip_client._default_opener(req) == (401, b"unauthorized")
 
 
 # ---- nueip-shaped config: multi-field date, constant action, csrf header ----
