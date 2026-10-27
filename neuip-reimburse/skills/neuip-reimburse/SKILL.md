@@ -117,6 +117,8 @@ config.json 結構（已對 nueip 實測確定）：
    停止、不要盲送其餘筆，問使用者是否要重送（重跑 submit.sh 會再開一次登入視窗）。
    也可單獨重新登入：`cd <skill> && ~/.config/neuip-reimburse/venv/bin/python -m scripts.login`
    （同樣自動開/關瀏覽器並寫 `auth.json`；用 `run_in_background` 或 `timeout: 600000` 執行）。
+   若回傳 `{"error":"submit_rejected","response":…}`：nueip 沒回 `status: success`，把 `response`
+   原樣給使用者看、停止，不要自動重送（可能是金額/日期被拒，需人工判斷）。
 5. 彙總每筆結果（成功/失敗）回報使用者。
 
 ## 重要規則

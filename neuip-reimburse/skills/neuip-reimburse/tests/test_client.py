@@ -1,6 +1,7 @@
-import io
-import urllib.error
+import contextlib
+import threading
 import urllib.request
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from scripts import neuip_client
 from scripts.neuip_client import NeuipClient, AuthExpired
@@ -60,16 +61,55 @@ def test_401_raises_auth_expired(tmp_path):
         pass
 
 
-def test_default_opener_reports_error_status(monkeypatch):
+@contextlib.contextmanager
+def _server(post_status, post_headers=None):
+    """Local stand-in for nueip: POST answers post_status; GET serves an HTML login page."""
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            self.send_response(post_status)
+            for k, v in (post_headers or {}).items():
+                self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(b"unauthorized")
+
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(b"<html>login</html>")
+
+        def log_message(self, *a):
+            pass
+
+    srv = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        yield f"http://127.0.0.1:{srv.server_port}"
+    finally:
+        srv.shutdown()
+
+
+def test_default_opener_reports_error_status():
     """urlopen raises HTTPError on 4xx — the opener must hand the status back,
     otherwise submit() never reaches its 401 → AuthExpired branch."""
-    def boom(req, context=None):
-        raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", {},
-                                     io.BytesIO(b"unauthorized"))
+    with _server(401) as base:
+        req = urllib.request.Request(base + "/api/claim", data=b"", method="POST")
+        assert neuip_client._default_opener(req) == (401, b"unauthorized")
 
-    monkeypatch.setattr(neuip_client.urllib.request, "urlopen", boom)
-    req = urllib.request.Request("https://x.neuip.com/api/claim", data=b"", method="POST")
-    assert neuip_client._default_opener(req) == (401, b"unauthorized")
+
+def test_redirect_to_login_raises_auth_expired(tmp_path):
+    """Following a redirect to the login page would yield a 200 HTML page that
+    looks like a successful submit — it must surface as AuthExpired instead."""
+    pdf = tmp_path / "c.pdf"
+    pdf.write_bytes(b"%PDF fake")
+    with _server(302, {"Location": "/login"}) as base:
+        client = NeuipClient(dict(CFG, base_url=base), {"kind": "token", "token": "x"})
+        try:
+            client.submit(str(pdf), "C1", 100, "2026-07-15", "x")
+            assert False, "expected AuthExpired"
+        except AuthExpired:
+            pass
 
 
 # ---- nueip-shaped config: multi-field date, constant action, csrf header ----

@@ -20,7 +20,7 @@ def test_submit_applies_cap_and_reports(tmp_path, monkeypatch):
 
         def submit(self, pdf, code, amount, date, reason):
             captured.update(code=code, amount=amount)
-            return {"ok": True}
+            return {"status": "success"}
 
     pdf = tmp_path / "c.pdf"
     pdf.write_bytes(b"%PDF")
@@ -42,6 +42,22 @@ class Expiring:
 class Accepting:
     def submit(self, *a, **k):
         return {"status": "success"}
+
+
+def test_submit_not_ok_unless_nueip_confirms(tmp_path, monkeypatch):
+    monkeypatch.setattr(neuip_client, "load_config", lambda: CFG)
+    monkeypatch.setattr(neuip_client, "load_auth", lambda: {"kind": "token", "token": "T"})
+
+    class Rejecting:
+        def submit(self, *a, **k):
+            return {"status": "fail", "message": "超過可申請金額"}
+
+    res = _run(tmp_path, client_factory=lambda cfg, auth: Rejecting(),
+               relogin=lambda cfg: None)
+
+    assert "ok" not in res
+    assert res["error"] == "submit_rejected"
+    assert res["response"]["message"] == "超過可申請金額"   # surfaced for the user
 
 
 def _run(tmp_path, client_factory, relogin):

@@ -51,6 +51,10 @@ def main(argv=None, client_factory=lambda cfg, auth: NeuipClient(cfg, auth),
                   "hint": "login window closed or timed out; rerun to log in again"}
         print(json.dumps(result, ensure_ascii=False))
         return result
+    if resp.get("status") != "success":
+        result = {"error": "submit_rejected", "category": args.category, "response": resp}
+        print(json.dumps(result, ensure_ascii=False))
+        return result
     result = {"category": args.category, "submitted_amount": amount,
               "ok": True, "response": resp}
     print(json.dumps(result, ensure_ascii=False))

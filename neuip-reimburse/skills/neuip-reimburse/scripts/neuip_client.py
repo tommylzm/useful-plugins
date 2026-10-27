@@ -80,13 +80,25 @@ def _multipart(fields: dict, file_field: str, file_path: str):
     return body, f"multipart/form-data; boundary={boundary}"
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Hand 3xx back instead of following it: a redirect to the login page would
+    otherwise arrive as a 200 HTML page that looks like a successful submit."""
+
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_OPENER = urllib.request.build_opener(
+    _NoRedirect, urllib.request.HTTPSHandler(context=_SSL_CONTEXT))
+
+
 def _default_opener(req):
     try:
-        with urllib.request.urlopen(req, context=_SSL_CONTEXT) as resp:
+        with _OPENER.open(req) as resp:
             return resp.status, resp.read()
     except urllib.error.HTTPError as e:
-        # urlopen raises on 4xx/5xx; hand the status back so submit() can turn a
-        # 401 into AuthExpired instead of surfacing a traceback.
+        # the opener raises on 3xx/4xx/5xx; hand the status back so submit() can
+        # turn a 401 or login redirect into AuthExpired instead of a traceback.
         return e.code, e.read()
 
 
