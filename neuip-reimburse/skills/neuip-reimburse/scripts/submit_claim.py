@@ -5,7 +5,14 @@ from scripts import neuip_client
 from scripts.neuip_client import NeuipClient, AuthExpired, apply_cap
 
 
-def main(argv=None, client_factory=lambda cfg, auth: NeuipClient(cfg, auth)) -> dict:
+def _interactive_login(cfg):
+    # imported lazily: playwright is only needed when the cookie has expired
+    from scripts import login
+    return login.interactive_login(cfg)
+
+
+def main(argv=None, client_factory=lambda cfg, auth: NeuipClient(cfg, auth),
+         relogin=_interactive_login) -> dict:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pdf", required=True)
     ap.add_argument("--category", required=True)
@@ -24,11 +31,24 @@ def main(argv=None, client_factory=lambda cfg, auth: NeuipClient(cfg, auth)) -> 
         return result
 
     amount = apply_cap(args.amount, cat["cap"])
-    client = client_factory(cfg, auth)
+
+    def send(a):
+        return client_factory(cfg, a).submit(
+            args.pdf, cat["neuip_category_code"], amount, args.date, args.reason)
+
     try:
-        resp = client.submit(args.pdf, cat["neuip_category_code"], amount, args.date, args.reason)
+        try:
+            resp = send(auth)
+        except AuthExpired:
+            # a 401 means nothing was created, so one retry after re-login is safe
+            auth = relogin(cfg)
+            if auth is None:
+                raise
+            neuip_client.save_auth(auth)
+            resp = send(auth)
     except AuthExpired:
-        result = {"error": "auth_expired", "hint": "run /neuip-reimburse --setup"}
+        result = {"error": "auth_expired",
+                  "hint": "login window closed or timed out; rerun to log in again"}
         print(json.dumps(result, ensure_ascii=False))
         return result
     result = {"category": args.category, "submitted_amount": amount,

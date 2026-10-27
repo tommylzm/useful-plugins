@@ -78,7 +78,9 @@ config.json 結構（已對 nueip 實測確定）：
 - `archive_root`, `max_pdf_bytes`
 
 認證：`auth.json = {"kind":"cookie","cookies":{…}}`。`neuip_client` 走 cookie 認證並自動
-帶 `X-Csrf-Token`。SSL：`neuip_client` 已放寬 Python 3.14 的 `VERIFY_X509_STRICT`
+帶 `X-Csrf-Token`。過期時由 `scripts/login.py` 自動重新登入：開 `login_url`（預設
+`https://portal.nueip.com/login`，config 可覆寫），離開 /login 後用 `get_payroll_options`
+驗證 cookie 有效即關窗。SSL：`neuip_client` 已放寬 Python 3.14 的 `VERIFY_X509_STRICT`
 （nueip 憑證缺 SKI 欄位），仍保有 CA/網域驗證。
 
 科目代碼查詢（可用於未來動態比對或新增分類）：帶 cookie POST `payment_request`
@@ -107,7 +109,14 @@ config.json 結構（已對 nueip 實測確定）：
    （此 wrapper 已在 `~/.claude/settings.json` 的 `permissions.allow` 授權，可直接送出、不需逐筆核准。
    `submit_claim` 內部會自動 `min(amount, cap)`，所以帶原始加總即可。）
    - **通勤補助 / 停車補助免事由** → `--reason ""`。
-4. 若任何一筆回傳 `{"error":"auth_expired"}`：停止並提示使用者跑 `--setup` 重新登入，不要盲送其餘筆。
+   - **Bash 呼叫一律帶 `timeout: 600000`**：cookie 過期（401）時 `submit_claim` 會自動開瀏覽器
+     到登入頁、等使用者登入（最多 5 分鐘），確認登入成功後**自動關閉視窗**、寫回 `auth.json`，
+     並重送這一筆一次。開瀏覽器前先告訴使用者「若跳出 nueip 登入視窗，請登入」。
+     後續筆數直接讀新的 `auth.json`，不會重複要求登入。
+4. 若任何一筆回傳 `{"error":"auth_expired"}`：代表使用者關掉了登入視窗、或 5 分鐘內沒登入。
+   停止、不要盲送其餘筆，問使用者是否要重送（重跑 submit.sh 會再開一次登入視窗）。
+   也可單獨重新登入：`cd <skill> && ~/.config/neuip-reimburse/venv/bin/python -m scripts.login`
+   （同樣自動開/關瀏覽器並寫 `auth.json`；用 `run_in_background` 或 `timeout: 600000` 執行）。
 5. 彙總每筆結果（成功/失敗）回報使用者。
 
 ## 重要規則
